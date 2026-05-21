@@ -1,13 +1,14 @@
 # app.py
-# ContestabilityLayer MVP: mobile-first Streamlit prototype
+# ContestabilityLayer MVP — mobile-safe Streamlit prototype
 # Run locally with: streamlit run app.py
 
 from __future__ import annotations
 
 from datetime import datetime
 from html import escape
-import json
+from textwrap import dedent
 from typing import Dict, List, Tuple
+import json
 
 import pandas as pd
 import streamlit as st
@@ -25,9 +26,22 @@ st.set_page_config(
 
 
 # ============================================================
-# CSS: mobile-first, light, high-contrast, no broken dark widgets
+# Safe HTML renderer
+# IMPORTANT: dedent prevents Streamlit/Markdown from showing HTML
+# as black code blocks on mobile.
 # ============================================================
-st.markdown(
+def html(markup: str) -> None:
+    st.markdown(dedent(markup).strip(), unsafe_allow_html=True)
+
+
+def safe(value: object) -> str:
+    return escape(str(value), quote=True).replace("\n", "<br>")
+
+
+# ============================================================
+# CSS: light, mobile-first, high contrast
+# ============================================================
+html(
     """
     <style>
     :root {
@@ -35,16 +49,16 @@ st.markdown(
         --surface: #ffffff;
         --text: #0f172a;
         --muted: #475569;
-        --line: #dbe3ef;
+        --line: #d9e2ef;
         --blue: #2563eb;
         --green: #16a34a;
         --amber: #d97706;
         --red: #dc2626;
         --purple: #7c3aed;
-        --slate: #334155;
+        --slate: #64748b;
     }
 
-    html, body, [data-testid="stAppViewContainer"], .stApp {
+    html, body, .stApp, [data-testid="stAppViewContainer"] {
         background: var(--bg) !important;
         color: var(--text) !important;
     }
@@ -55,67 +69,66 @@ st.markdown(
     }
 
     .block-container {
-        padding-top: 1.25rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-        max-width: 900px !important;
+        padding-top: 1rem !important;
+        padding-left: 0.95rem !important;
+        padding-right: 0.95rem !important;
+        max-width: 860px !important;
     }
 
-    h1, h2, h3, h4, h5, h6, p, li, label, span, div {
-        color: var(--text);
+    h1, h2, h3, h4, p, li, label, span, div {
+        color: var(--text) !important;
     }
 
     h1 {
-        font-size: clamp(2.05rem, 8vw, 3.35rem) !important;
-        line-height: 1.02 !important;
+        font-size: clamp(2rem, 8vw, 3.25rem) !important;
+        line-height: 1.03 !important;
         letter-spacing: -0.06em !important;
-        margin-bottom: 0.65rem !important;
-        font-weight: 900 !important;
+        font-weight: 950 !important;
+        margin-bottom: 0.6rem !important;
     }
 
     h2 {
-        font-size: clamp(1.45rem, 6vw, 2.15rem) !important;
-        line-height: 1.12 !important;
+        font-size: clamp(1.35rem, 5.6vw, 2rem) !important;
+        line-height: 1.15 !important;
         letter-spacing: -0.04em !important;
-        margin-top: 2.05rem !important;
-        margin-bottom: 1rem !important;
-        font-weight: 850 !important;
+        font-weight: 900 !important;
+        margin-top: 1.8rem !important;
+        margin-bottom: 0.8rem !important;
     }
 
     h3 {
-        font-size: clamp(1.1rem, 4.8vw, 1.45rem) !important;
+        font-size: clamp(1.05rem, 4.8vw, 1.35rem) !important;
         line-height: 1.18 !important;
-        font-weight: 800 !important;
-        margin-top: 1.25rem !important;
-    }
-
-    .eyebrow {
-        color: var(--blue);
-        font-size: 0.78rem;
-        line-height: 1.1;
-        font-weight: 900;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        margin: 0 0 0.8rem 0;
+        font-weight: 850 !important;
+        margin-top: 1.2rem !important;
     }
 
     .hero {
-        border-radius: 28px;
-        padding: 1.35rem;
-        margin-bottom: 1.2rem;
+        border-radius: 26px;
+        padding: 1.25rem;
+        margin-bottom: 1.25rem;
         background: linear-gradient(135deg, #172554 0%, #1d4ed8 58%, #38bdf8 100%);
-        box-shadow: 0 18px 55px rgba(37, 99, 235, 0.28);
+        box-shadow: 0 18px 48px rgba(37, 99, 235, 0.28);
         border: 1px solid rgba(255,255,255,0.28);
     }
-    .hero h1, .hero p, .hero span, .hero div {
+    .hero h1, .hero p, .hero div, .hero span {
         color: #ffffff !important;
     }
     .hero .sub {
         color: #dbeafe !important;
-        font-size: 1.03rem;
-        line-height: 1.7;
+        font-size: 1.02rem;
+        line-height: 1.65;
         margin-top: 0.5rem;
-        margin-bottom: 1.2rem;
+    }
+
+    .eyebrow {
+        color: var(--blue) !important;
+        font-size: 0.78rem;
+        line-height: 1.1;
+        font-weight: 950;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 0.8rem 0;
     }
 
     .pill-row {
@@ -128,50 +141,49 @@ st.markdown(
         display: inline-flex;
         align-items: center;
         border-radius: 999px;
-        padding: 0.55rem 0.82rem;
-        font-size: 0.9rem;
-        font-weight: 800;
+        padding: 0.55rem 0.78rem;
+        font-size: 0.88rem;
+        font-weight: 850;
         color: #ffffff !important;
-        background: rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.16);
         border: 1px solid rgba(255,255,255,0.35);
     }
 
     .card {
         background: var(--surface);
         border: 1px solid var(--line);
-        border-radius: 26px;
-        padding: 1.25rem;
-        margin: 0.8rem 0 1rem 0;
-        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+        border-radius: 24px;
+        padding: 1.15rem;
+        margin: 0.85rem 0 1rem 0;
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
         overflow-wrap: anywhere;
+        word-break: normal;
     }
     .card p {
-        font-size: 1.02rem;
+        font-size: 1.01rem;
         line-height: 1.72;
-        margin: 0.35rem 0 0 0;
+        margin: 0.4rem 0 0 0;
         color: var(--text) !important;
     }
     .card-title {
-        font-size: clamp(1.2rem, 5.2vw, 1.7rem);
+        font-size: clamp(1.2rem, 5.2vw, 1.65rem);
         line-height: 1.14;
-        font-weight: 900;
+        font-weight: 950;
         letter-spacing: -0.045em;
         color: var(--text) !important;
-        margin: 0.25rem 0 0.45rem 0;
+        margin: 0.18rem 0 0.4rem 0;
     }
     .kicker {
         color: #64748b !important;
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         line-height: 1.15;
-        font-weight: 900;
+        font-weight: 950;
         letter-spacing: 0.18em;
         text-transform: uppercase;
         margin-bottom: 0.55rem;
     }
-    .note {
+    .muted {
         color: var(--muted) !important;
-        font-size: 0.98rem;
-        line-height: 1.6;
     }
 
     .accent-blue { border-left: 10px solid var(--blue); background: #eff6ff; }
@@ -185,17 +197,17 @@ st.markdown(
         display: flex;
         flex-wrap: wrap;
         gap: 0.55rem;
-        margin-bottom: 0.9rem;
+        margin-bottom: 0.8rem;
     }
     .badge {
         display: inline-flex;
         align-items: center;
         border-radius: 999px;
-        padding: 0.45rem 0.72rem;
+        padding: 0.45rem 0.7rem;
         background: #ffffff;
         color: var(--text) !important;
         border: 1px solid var(--line);
-        font-size: 0.88rem;
+        font-size: 0.86rem;
         font-weight: 850;
     }
 
@@ -209,20 +221,20 @@ st.markdown(
         background: #ffffff;
         border: 1px solid var(--line);
         border-radius: 22px;
-        padding: 1.1rem;
-        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+        padding: 1.05rem;
+        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
     }
     .metric-kicker {
         color: #64748b !important;
         font-size: 0.72rem;
-        font-weight: 900;
+        font-weight: 950;
         letter-spacing: 0.16em;
         text-transform: uppercase;
         margin-bottom: 0.5rem;
     }
     .metric-value {
         color: var(--text) !important;
-        font-size: clamp(1.4rem, 7vw, 2.2rem);
+        font-size: clamp(1.35rem, 7vw, 2.1rem);
         font-weight: 950;
         line-height: 1.04;
         letter-spacing: -0.055em;
@@ -254,28 +266,35 @@ st.markdown(
     .bar-green { background: var(--green); }
     .bar-purple { background: var(--purple); }
 
-    .divider {
-        height: 1px;
-        background: #dbe3ef;
-        margin: 1.4rem 0;
+    .list-card ul {
+        padding-left: 1.1rem;
+        margin-bottom: 0;
+    }
+    .list-card li {
+        font-size: 1rem;
+        line-height: 1.65;
+        color: var(--text) !important;
+        margin-bottom: 0.28rem;
     }
 
-    /* Streamlit widgets: force readable light styling */
+    /* Streamlit widgets: readable on phones, no dark dropdowns because we use radios/checks instead. */
     div[role="radiogroup"] label {
         background: #ffffff !important;
         border: 1px solid #dbe3ef !important;
         border-radius: 16px !important;
-        padding: 0.42rem 0.58rem !important;
-        margin-bottom: 0.32rem !important;
+        padding: 0.44rem 0.58rem !important;
+        margin-bottom: 0.34rem !important;
         color: var(--text) !important;
     }
-    div[role="radiogroup"] label p {
+    div[role="radiogroup"] label p,
+    .stCheckbox label p,
+    .stSlider label p,
+    .stTextInput label p,
+    .stTextArea label p,
+    .stFileUploader label p,
+    .stNumberInput label p {
         color: var(--text) !important;
-        font-weight: 750 !important;
-    }
-    .stSlider label, .stNumberInput label, .stTextInput label, .stTextArea label, .stFileUploader label, .stCheckbox label {
-        color: var(--text) !important;
-        font-weight: 750 !important;
+        font-weight: 780 !important;
     }
     textarea, input {
         background: #ffffff !important;
@@ -307,43 +326,42 @@ st.markdown(
         }
         .pill {
             font-size: 0.82rem;
-            padding: 0.48rem 0.66rem;
+            padding: 0.48rem 0.64rem;
         }
     }
     </style>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
 # ============================================================
-# Data and configuration
+# Configuration
 # ============================================================
 COUNTRY_COPY: Dict[str, Dict[str, str]] = {
     "Bangladesh": {
         "notice": "Plain-language review wording suitable for a Bangladesh pilot. The affected person may request human review, correct data, and submit relevant evidence for this case only.",
         "rights": "This is a review pathway, not legal advice. The company should provide a clear contact route, reviewer accountability, and a written outcome.",
-        "timeline": "Suggested review target: 3 to 7 working days for a pilot workflow.",
+        "timeline": "3 to 7 working days",
     },
     "EU / UK": {
         "notice": "GDPR-style wording emphasizing meaningful information, human intervention, contestation, and the ability to express a point of view.",
         "rights": "The workflow should support meaningful human review, purpose limitation, data minimization, and audit evidence.",
-        "timeline": "Suggested review target: configurable by organization and legal team.",
+        "timeline": "configurable by legal policy",
     },
     "United States": {
         "notice": "Adverse-action-style wording for sectors such as lending, employment, insurance, or platform decisions, with clear reasons and correction paths.",
         "rights": "The workflow should be adjusted by sector, state, and legal counsel before production use.",
-        "timeline": "Suggested review target: based on sector and company policy.",
+        "timeline": "based on sector and company policy",
     },
     "India": {
         "notice": "Plain-language digital-service review wording suitable for fintech, hiring, insurance, education, and platform decisions.",
-        "rights": "The workflow should include grievance-routing, consent limits, and a clear human-review owner.",
-        "timeline": "Suggested review target: 3 to 10 working days, configurable by policy.",
+        "rights": "The workflow should include grievance routing, consent limits, and a clear human-review owner.",
+        "timeline": "3 to 10 working days",
     },
     "Generic global": {
         "notice": "Generic contestability wording for automated or AI-assisted decisions where a person needs explanation, correction, and review.",
         "rights": "Use local legal review before production deployment.",
-        "timeline": "Suggested review target: configurable by country and domain.",
+        "timeline": "configurable by country and domain",
     },
 }
 
@@ -356,8 +374,16 @@ SCENARIO_EVIDENCE: Dict[str, str] = {
     "NGO beneficiary selection": "household information, eligibility document, local verification, corrected income or vulnerability data",
 }
 
-SCENARIOS = list(SCENARIO_EVIDENCE.keys())
 COUNTRIES = list(COUNTRY_COPY.keys())
+SCENARIOS = list(SCENARIO_EVIDENCE.keys())
+REVIEW_STATUSES = [
+    "Not started",
+    "Submitted",
+    "Under human review",
+    "Need more evidence",
+    "Data corrected and rerun needed",
+    "Final decision issued",
+]
 
 
 # ============================================================
@@ -365,81 +391,95 @@ COUNTRIES = list(COUNTRY_COPY.keys())
 # ============================================================
 if "audit_log" not in st.session_state:
     st.session_state.audit_log = []
-
 if "submission" not in st.session_state:
     st.session_state.submission = None
-
 if "review_status" not in st.session_state:
     st.session_state.review_status = "Not started"
-
 if "reviewer_note" not in st.session_state:
     st.session_state.reviewer_note = ""
-
 if "audit_started" not in st.session_state:
     st.session_state.audit_started = False
 
 
 # ============================================================
-# Helpers
+# UI helpers
 # ============================================================
 def add_audit_event(event: str) -> None:
     st.session_state.audit_log.append(
-        {
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "event": event,
-        }
+        {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "event": event}
     )
 
 
-def safe(value: object) -> str:
-    return escape(str(value), quote=True)
-
-
-def render_card(title: str, body: str, kicker: str = "", accent: str = "slate", badges: List[str] | None = None) -> None:
+def render_card(
+    title: str,
+    body: str,
+    kicker: str = "",
+    accent: str = "slate",
+    badges: List[str] | None = None,
+) -> None:
     badge_html = ""
     if badges:
-        badge_html = '<div class="badge-row">' + "".join(f'<span class="badge">{safe(b)}</span>' for b in badges) + "</div>"
+        badge_html = '<div class="badge-row">' + "".join(
+            f'<span class="badge">{safe(badge)}</span>' for badge in badges
+        ) + "</div>"
     kicker_html = f'<div class="kicker">{safe(kicker)}</div>' if kicker else ""
-    st.markdown(
-        f'''
+    html(
+        f"""
         <div class="card accent-{safe(accent)}">
             {badge_html}
             {kicker_html}
             <div class="card-title">{safe(title)}</div>
             <p>{safe(body)}</p>
         </div>
-        ''',
-        unsafe_allow_html=True,
+        """
+    )
+
+
+def render_list_card(title: str, items: List[str], kicker: str = "", accent: str = "slate") -> None:
+    list_items = "".join(f"<li>{safe(item)}</li>" for item in items)
+    kicker_html = f'<div class="kicker">{safe(kicker)}</div>' if kicker else ""
+    html(
+        f"""
+        <div class="card accent-{safe(accent)} list-card">
+            {kicker_html}
+            <div class="card-title">{safe(title)}</div>
+            <ul>{list_items}</ul>
+        </div>
+        """
     )
 
 
 def render_metric_grid(metrics: List[Tuple[str, str, str]]) -> None:
     items = ""
     for kicker, value, note in metrics:
-        items += f'''
+        items += f"""
         <div class="metric-card">
             <div class="metric-kicker">{safe(kicker)}</div>
             <div class="metric-value">{safe(value)}</div>
             <div class="metric-note">{safe(note)}</div>
         </div>
-        '''
-    st.markdown(f'<div class="metric-grid">{items}</div>', unsafe_allow_html=True)
+        """
+    html(f'<div class="metric-grid">{items}</div>')
 
 
 def render_bar(label: str, value: float, color: str = "blue") -> None:
-    width = max(0, min(100, value))
-    st.markdown(
-        f'''
+    width = max(0.0, min(100.0, float(value)))
+    html(
+        f"""
         <div class="card accent-slate">
             <div class="kicker">{safe(label)}</div>
             <div class="metric-value">{width:.0f}%</div>
-            <div class="bar-shell"><div class="bar-fill bar-{safe(color)}" style="width:{width:.1f}%"></div></div>
+            <div class="bar-shell">
+                <div class="bar-fill bar-{safe(color)}" style="width:{width:.1f}%"></div>
+            </div>
         </div>
-        ''',
-        unsafe_allow_html=True,
+        """
     )
 
 
+# ============================================================
+# Decision logic
+# ============================================================
 def compute_decision(
     capacity: int,
     burden_ratio: float,
@@ -448,7 +488,6 @@ def compute_decision(
     relevant_history: int,
     sensitive_context: bool,
 ) -> Tuple[float, str, str, float, Dict[str, float], List[str]]:
-    """Transparent simulated model for prototype purposes only."""
     score = 50.0
     score += min(capacity / 2000, 20)
     score -= burden_ratio * 35
@@ -520,7 +559,7 @@ def factor_text(factor: str, value: float) -> str:
             return "Missing or unclear documents significantly reduce confidence."
         if value < 0:
             return "Missing or unclear documents reduce confidence."
-        return "No missing document penalty is applied."
+        return "No missing-document penalty is applied."
     return "This factor influenced the recommendation."
 
 
@@ -551,7 +590,7 @@ def case_report(case: Dict[str, object]) -> str:
 # ============================================================
 # Header
 # ============================================================
-st.markdown(
+html(
     """
     <div class="hero">
         <div class="eyebrow" style="color:#bfdbfe !important;">ContestabilityLayer MVP</div>
@@ -567,8 +606,7 @@ st.markdown(
             <span class="pill">Audit trail</span>
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 if not st.session_state.audit_started:
@@ -577,24 +615,12 @@ if not st.session_state.audit_started:
 
 
 # ============================================================
-# Demo configuration: no selectbox, no tabs, no expander
+# Configuration controls: no selectbox, no tabs, no expander
 # ============================================================
-st.markdown('<div class="eyebrow">Configure demo case</div>', unsafe_allow_html=True)
+html('<div class="eyebrow">Configure demo case</div>')
 
-country = st.radio(
-    "Country / legal template",
-    COUNTRIES,
-    index=0,
-    horizontal=False,
-)
-
-scenario = st.radio(
-    "Decision scenario",
-    SCENARIOS,
-    index=0,
-    horizontal=False,
-)
-
+country = st.radio("Country / legal template", COUNTRIES, index=0, horizontal=False)
+scenario = st.radio("Decision scenario", SCENARIOS, index=0, horizontal=False)
 capacity = st.slider("Capacity / income indicator", 500, 10000, 2600, step=100)
 burden_ratio = st.slider("Debt or burden ratio", 0.0, 1.0, 0.42, step=0.01)
 stable_years = st.slider("Years of stable work/activity", 0, 15, 2)
@@ -638,10 +664,10 @@ view = st.radio(
 
 
 # ============================================================
-# View 1: Affected person notice
+# View 1: Affected-person notice
 # ============================================================
 if view == "Affected-person notice":
-    st.markdown('<div class="eyebrow">Case summary</div>', unsafe_allow_html=True)
+    html('<div class="eyebrow">Case summary</div>')
 
     render_card(
         title=recommendation,
@@ -684,7 +710,7 @@ if view == "Affected-person notice":
     else:
         render_card(
             "No automatic trigger detected",
-            "The person can still request explanation or review if they believe the data is incorrect.",
+            "The affected person can still request explanation or review if they believe the data is incorrect.",
             accent="green",
         )
 
@@ -700,9 +726,12 @@ if view == "Affected-person notice":
         )
 
     render_card(
-        title="Data minimization",
-        body=f"For this {scenario.lower()} case, useful evidence may include: {SCENARIO_EVIDENCE[scenario]}. The person should not upload unrelated private information.",
-        kicker="Evidence that may help",
+        title="Evidence that may help",
+        body=(
+            f"For this {scenario.lower()} case, useful evidence may include: "
+            f"{SCENARIO_EVIDENCE[scenario]}. The affected person should not upload unrelated private information."
+        ),
+        kicker="Data minimization",
         accent="slate",
     )
 
@@ -711,7 +740,7 @@ if view == "Affected-person notice":
 # View 2: Challenge and evidence
 # ============================================================
 elif view == "Challenge and evidence":
-    st.markdown('<div class="eyebrow">Affected-person action</div>', unsafe_allow_html=True)
+    html('<div class="eyebrow">Affected-person action</div>')
     st.subheader("Challenge the recommendation")
 
     render_card(
@@ -721,48 +750,51 @@ elif view == "Challenge and evidence":
         accent="blue",
     )
 
-    with st.form("challenge_form", clear_on_submit=False):
-        reason_options = [
-            "Incorrect data was used",
-            "Important document is missing",
-            "The model misunderstood my context",
-            "The recommendation may be unfair or biased",
-            "The uncertainty is too high for automatic processing",
-            "I want human review",
-        ]
-        reasons = st.multiselect("What do you want to challenge?", reason_options)
-        explanation = st.text_area(
-            "Explain your challenge",
-            placeholder="Example: My current income is higher than shown, and one employment document was missing.",
-            height=150,
-        )
-        review_path = st.radio(
-            "Choose review path",
-            [
-                "Fast human review",
-                "Correct data and rerun recommendation",
-                "Full appeal review",
-                "Request explanation only",
-            ],
-            horizontal=False,
-        )
-        uploaded_file = st.file_uploader(
-            "Upload optional evidence",
-            type=["pdf", "png", "jpg", "jpeg", "docx"],
-        )
-        consent = st.checkbox(
-            "I consent to share only the selected information for this specific review purpose."
-        )
-        submitted = st.form_submit_button("Submit challenge request")
+    st.write("Select the reasons for the challenge:")
+    reason_options = [
+        "Incorrect data was used",
+        "Important document is missing",
+        "The model misunderstood my context",
+        "The recommendation may be unfair or biased",
+        "The uncertainty is too high for automatic processing",
+        "I want human review",
+    ]
+    selected_reasons: List[str] = []
+    for option in reason_options:
+        if st.checkbox(option, key=f"reason_{option}"):
+            selected_reasons.append(option)
 
-    if submitted:
-        if not reasons:
+    explanation = st.text_area(
+        "Explain your challenge",
+        placeholder="Example: My current income is higher than shown, and one employment document was missing.",
+        height=150,
+    )
+    review_path = st.radio(
+        "Choose review path",
+        [
+            "Fast human review",
+            "Correct data and rerun recommendation",
+            "Full appeal review",
+            "Request explanation only",
+        ],
+        horizontal=False,
+    )
+    uploaded_file = st.file_uploader(
+        "Upload optional evidence",
+        type=["pdf", "png", "jpg", "jpeg", "docx"],
+    )
+    consent = st.checkbox(
+        "I consent to share only the selected information for this specific review purpose."
+    )
+
+    if st.button("Submit challenge request"):
+        if not selected_reasons:
             st.error("Please select at least one challenge reason.")
         elif not consent:
             st.error("Please confirm purpose-limited consent before submitting.")
         else:
             st.session_state.submission = {
-                "reasons": reasons,
+                "reasons": selected_reasons,
                 "explanation": explanation,
                 "review_path": review_path,
                 "uploaded_file": uploaded_file.name if uploaded_file else "No file uploaded",
@@ -780,17 +812,16 @@ elif view == "Challenge and evidence":
             kicker="Receipt",
             accent="green",
         )
-        for r in sub["reasons"]:
-            render_card("Selected challenge reason", r, accent="slate")
+        render_list_card("Selected challenge reasons", sub["reasons"], accent="slate")
         if sub["explanation"]:
-            render_card("User explanation", sub["explanation"], accent="blue")
+            render_card("Affected-person explanation", sub["explanation"], accent="blue")
 
 
 # ============================================================
-# View 3: Company review dashboard
+# View 3: Company dashboard
 # ============================================================
 elif view == "Company review dashboard":
-    st.markdown('<div class="eyebrow">Company side</div>', unsafe_allow_html=True)
+    html('<div class="eyebrow">Company side</div>')
     st.subheader("Reviewer dashboard")
 
     render_metric_grid(
@@ -824,33 +855,8 @@ elif view == "Company review dashboard":
             accent="slate",
         )
 
-    new_status = st.radio(
-        "Update review status",
-        [
-            "Not started",
-            "Submitted",
-            "Under human review",
-            "Need more evidence",
-            "Data corrected and rerun needed",
-            "Final decision issued",
-        ],
-        index=[
-            "Not started",
-            "Submitted",
-            "Under human review",
-            "Need more evidence",
-            "Data corrected and rerun needed",
-            "Final decision issued",
-        ].index(st.session_state.review_status) if st.session_state.review_status in [
-            "Not started",
-            "Submitted",
-            "Under human review",
-            "Need more evidence",
-            "Data corrected and rerun needed",
-            "Final decision issued",
-        ] else 0,
-        horizontal=False,
-    )
+    current_status_index = REVIEW_STATUSES.index(st.session_state.review_status) if st.session_state.review_status in REVIEW_STATUSES else 0
+    new_status = st.radio("Update review status", REVIEW_STATUSES, index=current_status_index, horizontal=False)
     reviewer_note = st.text_area(
         "Reviewer note",
         value=st.session_state.reviewer_note,
@@ -876,7 +882,7 @@ elif view == "Company review dashboard":
 # View 4: SaaS business layer
 # ============================================================
 elif view == "SaaS business layer":
-    st.markdown('<div class="eyebrow">SaaS profitability layer</div>', unsafe_allow_html=True)
+    html('<div class="eyebrow">SaaS profitability layer</div>')
     st.subheader("How this becomes a paid product")
 
     render_card(
@@ -886,20 +892,22 @@ elif view == "SaaS business layer":
         accent="green",
     )
 
-    st.subheader("Suggested pricing tiers")
     render_card(
         title="Starter: $49 to $99/month",
-        body="For small teams: hosted review portal, manual case creation, 2 reviewers, basic audit export, company branding.",
+        body="Hosted review portal, manual case creation, 2 reviewers, basic audit export, and company branding.",
+        kicker="Pricing tier",
         accent="slate",
     )
     render_card(
         title="Growth: $199 to $499/month",
-        body="For fintech, HR-tech, education, and insurance teams: API case creation, evidence uploads, reviewer queue, analytics, country templates.",
+        body="API case creation, evidence uploads, reviewer queue, analytics, country templates, and domain templates for fintech, HR, insurance, education, platforms, and NGOs.",
+        kicker="Pricing tier",
         accent="blue",
     )
     render_card(
         title="Enterprise: custom pricing",
-        body="For banks, large platforms, insurers, and public services: SSO, data residency, custom legal templates, SLA, advanced audit exports, integrations.",
+        body="SSO, data residency, custom legal templates, SLA, advanced audit exports, legal review workflow, and integrations with CRM, HR, lending, or claim systems.",
+        kicker="Pricing tier",
         accent="purple",
     )
 
@@ -911,25 +919,26 @@ elif view == "SaaS business layer":
     render_metric_grid(
         [
             ("Estimated monthly savings", f"${monthly_savings:,.0f}", "From reduced support/review handling time."),
-            ("Best initial price", "$199-$499/mo", "If ROI is clearly above subscription cost."),
+            ("Suggested price", "$199-$499/mo", "Works if ROI is clearly above subscription cost."),
         ]
     )
 
-    st.subheader("SaaS features to build next")
-    features = [
-        "Multi-company workspaces",
-        "Reviewer seats and permissions",
-        "Case creation API",
-        "Country and domain templates",
-        "Evidence storage with retention rules",
-        "Audit PDF and CSV exports",
-        "Email/SMS status notifications",
-        "Company branding and custom decision notices",
-        "Analytics: dispute rate, reversal rate, time to review",
-        "Billing by reviewer seats and monthly case volume",
-    ]
-    for f in features:
-        render_card("Feature", f, accent="slate")
+    render_list_card(
+        "SaaS features to build next",
+        [
+            "Multi-company workspaces",
+            "Reviewer seats and role permissions",
+            "Case creation API and webhook notifications",
+            "Country and domain templates",
+            "Evidence storage with retention rules",
+            "Audit PDF and CSV exports",
+            "Email/SMS status notifications",
+            "Company branding and custom decision notices",
+            "Analytics: dispute rate, reversal rate, time to review",
+            "Billing by reviewer seats and monthly case volume",
+        ],
+        accent="green",
+    )
 
     st.subheader("API fields companies would send")
     api_rows = pd.DataFrame(
@@ -953,7 +962,7 @@ elif view == "SaaS business layer":
 # View 5: Audit and exports
 # ============================================================
 elif view == "Audit and exports":
-    st.markdown('<div class="eyebrow">Audit and exports</div>', unsafe_allow_html=True)
+    html('<div class="eyebrow">Audit and exports</div>')
     st.subheader("Audit trail")
 
     audit_df = pd.DataFrame(st.session_state.audit_log)
