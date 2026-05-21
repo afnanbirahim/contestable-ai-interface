@@ -1,14 +1,14 @@
-
 # app.py
 # Contestable AI Decision Interface
-# Improved Streamlit MVP for AI contestability, human review, and auditability
+# UI/UX-polished Streamlit MVP for AI contestability / human-review workflow
 # Run locally with: streamlit run app.py
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from io import StringIO
-from uuid import uuid4
+from datetime import datetime
+from hashlib import sha1
+from typing import Dict, List, Tuple
+import json
 
 import pandas as pd
 import streamlit as st
@@ -26,90 +26,360 @@ st.set_page_config(
 
 
 # ============================================================
-# CSS
+# UI helpers and styling
 # ============================================================
 st.markdown(
     """
     <style>
+    :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #111827;
+        --muted: #4b5563;
+        --line: #e5e7eb;
+        --soft-line: #f1f5f9;
+        --blue: #2563eb;
+        --blue-soft: #dbeafe;
+        --green: #16a34a;
+        --green-soft: #dcfce7;
+        --amber: #d97706;
+        --amber-soft: #fef3c7;
+        --red: #dc2626;
+        --red-soft: #fee2e2;
+        --purple: #7c3aed;
+        --purple-soft: #ede9fe;
+    }
+
     .block-container {
         padding-top: 1.4rem;
-        padding-bottom: 2rem;
+        padding-bottom: 3rem;
+        max-width: 1180px;
     }
+
+    .hero {
+        border: 1px solid var(--line);
+        background:
+            radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 34%),
+            linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 24px;
+        padding: 1.45rem 1.55rem;
+        box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+        margin-bottom: 1.15rem;
+    }
+
     .main-title {
-        font-size: 2.25rem;
+        font-size: clamp(1.8rem, 3vw, 2.55rem);
         font-weight: 850;
-        margin-bottom: 0.25rem;
-        line-height: 1.12;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.04em;
+        color: var(--text);
+        line-height: 1.05;
+        margin: 0 0 0.45rem 0;
     }
+
     .subtitle {
         font-size: 1.02rem;
-        color: #4b5563;
-        margin-bottom: 1.1rem;
-        max-width: 1000px;
+        color: var(--muted);
+        max-width: 860px;
+        line-height: 1.55;
+        margin: 0;
     }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--text);
+        margin: 1.1rem 0 0.55rem 0;
+        letter-spacing: -0.015em;
+    }
+
+    .section-help {
+        color: var(--muted);
+        line-height: 1.5;
+        margin-top: -0.25rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.95rem;
+    }
+
     .card {
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--line);
         border-radius: 18px;
-        padding: 1rem 1.1rem;
-        background: #ffffff;
-        box-shadow: 0 1px 5px rgba(0,0,0,0.045);
-        margin-bottom: 1rem;
+        padding: 1rem 1.05rem;
+        background: var(--card);
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.045);
+        margin-bottom: 0.85rem;
+        color: var(--text);
     }
-    .good-card {
-        border-left: 7px solid #16a34a;
-        background: #f0fdf4;
+
+    .compact-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 0.85rem 0.95rem;
+        background: var(--card);
+        margin-bottom: 0.7rem;
+        color: var(--text);
     }
-    .warn-card {
-        border-left: 7px solid #d97706;
-        background: #fffbeb;
+
+    .decision-card {
+        border-radius: 22px;
+        padding: 1.2rem;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
+        margin-bottom: 0.85rem;
+        color: var(--text);
     }
-    .bad-card {
-        border-left: 7px solid #dc2626;
-        background: #fef2f2;
+
+    .status-approved {
+        border: 1px solid #bbf7d0;
+        background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
     }
-    .info-card {
-        border-left: 7px solid #2563eb;
-        background: #eff6ff;
+
+    .status-review {
+        border: 1px solid #fde68a;
+        background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
     }
-    .neutral-card {
-        border-left: 7px solid #6b7280;
-        background: #f9fafb;
+
+    .status-rejected {
+        border: 1px solid #fecaca;
+        background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
     }
-    .purple-card {
-        border-left: 7px solid #7c3aed;
-        background: #f5f3ff;
+
+    .status-info {
+        border: 1px solid #bfdbfe;
+        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
     }
-    .small-text {
-        color: #6b7280;
-        font-size: 0.9rem;
-        line-height: 1.45;
-    }
-    .tiny-label {
-        color: #6b7280;
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 999px;
+        padding: 0.28rem 0.68rem;
         font-size: 0.78rem;
+        font-weight: 750;
+        border: 1px solid transparent;
+        margin-bottom: 0.55rem;
+    }
+
+    .badge-green {
+        color: #166534;
+        background: var(--green-soft);
+        border-color: #bbf7d0;
+    }
+
+    .badge-amber {
+        color: #92400e;
+        background: var(--amber-soft);
+        border-color: #fde68a;
+    }
+
+    .badge-red {
+        color: #991b1b;
+        background: var(--red-soft);
+        border-color: #fecaca;
+    }
+
+    .badge-blue {
+        color: #1e40af;
+        background: var(--blue-soft);
+        border-color: #bfdbfe;
+    }
+
+    .badge-purple {
+        color: #5b21b6;
+        background: var(--purple-soft);
+        border-color: #ddd6fe;
+    }
+
+    .kpi-label {
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 0.2rem;
     }
-    .big-value {
-        font-size: 1.45rem;
+
+    .kpi-value {
+        color: var(--text);
+        font-size: 1.55rem;
+        font-weight: 850;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+    }
+
+    .kpi-help {
+        color: var(--muted);
+        font-size: 0.88rem;
+        margin-top: 0.35rem;
+        line-height: 1.4;
+    }
+
+    .factor-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 0.95rem;
+        background: #ffffff;
+        margin-bottom: 0.72rem;
+        color: var(--text);
+    }
+
+    .factor-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.8rem;
+        align-items: flex-start;
+        margin-bottom: 0.45rem;
+    }
+
+    .factor-name {
         font-weight: 800;
-        color: #111827;
-        line-height: 1.2;
+        color: var(--text);
     }
-    .receipt {
-        border: 1px dashed #94a3b8;
-        border-radius: 14px;
-        padding: 1rem;
+
+    .factor-score-pos {
+        color: var(--green);
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .factor-score-neg {
+        color: var(--red);
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .factor-score-neu {
+        color: var(--muted);
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .factor-text {
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 0.94rem;
+    }
+
+    .timeline-item {
+        border-left: 3px solid #bfdbfe;
+        padding: 0.1rem 0 0.75rem 0.9rem;
+        margin-left: 0.2rem;
+    }
+
+    .timeline-time {
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 650;
+    }
+
+    .timeline-event {
+        color: var(--text);
+        font-weight: 700;
+        margin-top: 0.12rem;
+    }
+
+    .callout {
+        border-radius: 16px;
+        padding: 0.9rem 1rem;
+        border: 1px solid var(--line);
         background: #f8fafc;
+        margin-bottom: 0.85rem;
+        color: var(--text);
+        line-height: 1.48;
     }
-    .footer-note {
-        color: #6b7280;
-        font-size: 0.86rem;
-        border-top: 1px solid #e5e7eb;
-        margin-top: 1.2rem;
-        padding-top: 0.9rem;
+
+    .callout strong {
+        color: var(--text);
+    }
+
+    .small-text {
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.45;
+    }
+
+    .muted {
+        color: var(--muted);
+    }
+
+    .divider-soft {
+        height: 1px;
+        background: var(--line);
+        margin: 0.75rem 0;
+    }
+
+    .step-number {
+        width: 1.55rem;
+        height: 1.55rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #111827;
+        color: #ffffff;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 800;
+        margin-right: 0.4rem;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.4rem;
+        background: #f1f5f9;
+        padding: 0.35rem;
+        border-radius: 16px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 12px;
+        padding: 0.55rem 0.85rem;
+        font-weight: 750;
+    }
+
+    div[data-testid="stAlert"] {
+        border-radius: 14px;
+    }
+
+    div[data-testid="stDataFrame"] {
+        border-radius: 16px;
+        overflow: hidden;
+    }
+
+    @media (max-width: 760px) {
+        .block-container {
+            padding-left: 0.85rem;
+            padding-right: 0.85rem;
+            padding-top: 0.9rem;
+        }
+
+        .hero {
+            padding: 1.05rem;
+            border-radius: 18px;
+        }
+
+        .main-title {
+            font-size: 1.75rem;
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+        }
+
+        .card, .compact-card, .decision-card, .factor-card {
+            padding: 0.88rem;
+            border-radius: 15px;
+        }
+
+        .kpi-value {
+            font-size: 1.28rem;
+        }
+
+        .section-title {
+            font-size: 1.12rem;
+        }
+
+        .factor-head {
+            flex-direction: column;
+            gap: 0.2rem;
+        }
     }
     </style>
     """,
@@ -117,212 +387,150 @@ st.markdown(
 )
 
 
-# ============================================================
-# Country and domain configuration
-# ============================================================
-COUNTRY_CONFIG = {
-    "Bangladesh": {
-        "short_label": "BD",
-        "default_language": "English + Bangla-ready",
-        "review_timeline": "3–7 working days",
-        "rights_notice": (
-            "You may request a human review, correct incomplete information, and submit evidence. "
-            "This notice is written as a plain-language organizational review workflow and is not legal advice."
-        ),
-        "consent_notice": (
-            "Submitted information should be used only for this review purpose and should not be reused for unrelated profiling."
-        ),
-        "retention_notice": "Suggested retention: keep appeal records only as long as needed for review, audit, and lawful dispute handling.",
-        "tone": "Plain-language trust and complaint-resolution framing.",
-    },
-    "EU / UK": {
-        "short_label": "EU/UK",
-        "default_language": "English + local EU language-ready",
-        "review_timeline": "Usually 7–30 days depending on organization policy",
-        "rights_notice": (
-            "Where a solely automated decision has legal or similarly significant effects, the affected person should be given "
-            "meaningful information, a route to human intervention, and a way to contest the outcome."
-        ),
-        "consent_notice": (
-            "Only information necessary for the review should be collected. The purpose and retention period should be clear."
-        ),
-        "retention_notice": "Suggested retention: align with GDPR/UK GDPR data minimization, purpose limitation, and retention policies.",
-        "tone": "Rights-based automated-decision and contestability framing.",
-    },
-    "United States": {
-        "short_label": "US",
-        "default_language": "English",
-        "review_timeline": "Usually 7–30 days depending on sector and company policy",
-        "rights_notice": (
-            "The notice should explain the key reasons for the decision and provide a route to correct data or request review. "
-            "Sector-specific rules may apply, especially in lending, employment, insurance, and housing."
-        ),
-        "consent_notice": (
-            "Collect only review-relevant information and avoid asking users to disclose unnecessary sensitive details."
-        ),
-        "retention_notice": "Suggested retention: align with sector rules, dispute handling, and company data-retention policy.",
-        "tone": "Adverse-action, fairness, and dispute-resolution framing.",
-    },
-    "India": {
-        "short_label": "IN",
-        "default_language": "English + Indian language-ready",
-        "review_timeline": "3–15 working days depending on organization policy",
-        "rights_notice": (
-            "The affected person should be able to understand the reason for the automated or AI-assisted decision, "
-            "correct inaccurate data, and request human review."
-        ),
-        "consent_notice": (
-            "Review evidence should be limited to the specific appeal or correction purpose."
-        ),
-        "retention_notice": "Suggested retention: align with applicable data protection, sector, and internal grievance policies.",
-        "tone": "Grievance, review, and digital trust framing.",
-    },
-    "Generic Global": {
-        "short_label": "GLOBAL",
-        "default_language": "English",
-        "review_timeline": "According to company policy",
-        "rights_notice": (
-            "This workflow gives the affected person a clear explanation, a correction route, and a human-review path."
-        ),
-        "consent_notice": (
-            "Evidence should be used only for the selected review purpose."
-        ),
-        "retention_notice": "Suggested retention: keep only what is necessary for review, audit, and dispute handling.",
-        "tone": "General contestability and trust framing.",
-    },
-}
+def html_card(body: str, class_name: str = "card") -> None:
+    st.markdown(f'<div class="{class_name}">{body}</div>', unsafe_allow_html=True)
 
 
-DOMAIN_CONFIG = {
-    "Loan application": {
-        "affected_person": "Applicant",
-        "company_team": "Credit / risk review team",
-        "decision_word": "application",
-        "evidence_examples": [
-            "updated income document",
-            "bank statement",
-            "employment confirmation",
-            "proof of corrected debt information",
-        ],
-        "sensitive_warning": "Financial hardship, disability, family circumstances, or unusual income patterns may require careful human review.",
-    },
-    "Hiring shortlist": {
-        "affected_person": "Candidate",
-        "company_team": "HR / recruitment review team",
-        "decision_word": "shortlisting decision",
-        "evidence_examples": [
-            "updated CV",
-            "portfolio link",
-            "certificate",
-            "work sample",
-            "clarification of experience",
-        ],
-        "sensitive_warning": "Career gaps, disability accommodations, caregiving breaks, or non-standard experience may require human review.",
-    },
-    "Insurance claim": {
-        "affected_person": "Claimant",
-        "company_team": "Claims review team",
-        "decision_word": "claim",
-        "evidence_examples": [
-            "medical or repair document",
-            "photo evidence",
-            "policy document",
-            "missing invoice",
-        ],
-        "sensitive_warning": "Health, accident, disaster, or family circumstances may require careful human review.",
-    },
-    "University admission": {
-        "affected_person": "Applicant",
-        "company_team": "Admissions review team",
-        "decision_word": "admission decision",
-        "evidence_examples": [
-            "updated transcript",
-            "recommendation letter",
-            "test score correction",
-            "portfolio or statement",
-        ],
-        "sensitive_warning": "Interrupted education, disability accommodations, conflict/disaster context, or unusual grading systems may require human review.",
-    },
-    "Content moderation appeal": {
-        "affected_person": "User / creator",
-        "company_team": "Trust and safety review team",
-        "decision_word": "moderation action",
-        "evidence_examples": [
-            "context explanation",
-            "ownership proof",
-            "translation clarification",
-            "policy exception explanation",
-        ],
-        "sensitive_warning": "Journalistic, educational, political, artistic, or local-language context may require human review.",
-    },
-}
+def badge(text: str, variant: str = "blue") -> str:
+    return f'<span class="badge badge-{variant}">{text}</span>'
+
+
+def section_title(title: str, help_text: str | None = None) -> None:
+    st.markdown(f'<div class="section-title">{title}</div>', unsafe_allow_html=True)
+    if help_text:
+        st.markdown(f'<div class="section-help">{help_text}</div>', unsafe_allow_html=True)
+
+
+def now_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 # ============================================================
 # Session state
 # ============================================================
-def init_state() -> None:
-    defaults = {
-        "case_id": f"CASE-{uuid4().hex[:8].upper()}",
-        "audit_log": [],
-        "decision_logged": False,
-        "contestation_submitted": False,
-        "contestation_receipt": None,
-        "appeal_payload": None,
-        "review_status": "No contestation submitted",
-        "reviewer_updates": [],
-        "final_outcome": "Pending",
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+DEFAULTS = {
+    "audit_log": [],
+    "contestation_submitted": False,
+    "contest_receipt": None,
+    "review_status": "Not submitted",
+    "reviewer_notes": "",
+    "final_reviewer_outcome": "Pending",
+    "case_counter": 1,
+    "last_case_signature": "",
+}
+
+for key, value in DEFAULTS.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
 
-def reset_case() -> None:
-    for key in [
-        "case_id",
-        "audit_log",
-        "decision_logged",
-        "contestation_submitted",
-        "contestation_receipt",
-        "appeal_payload",
-        "review_status",
-        "reviewer_updates",
-        "final_outcome",
-        "created_at",
-    ]:
-        if key in st.session_state:
-            del st.session_state[key]
-    init_state()
-    add_audit_event("New case created", actor="System")
-
-
-init_state()
-
-
-# ============================================================
-# Helper functions
-# ============================================================
 def add_audit_event(event: str, actor: str = "System") -> None:
-    """Add a timestamped event to the audit trail."""
     st.session_state.audit_log.append(
         {
-            "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Time": now_str(),
             "Actor": actor,
             "Event": event,
         }
     )
 
 
+def reset_case_state() -> None:
+    st.session_state.audit_log = []
+    st.session_state.contestation_submitted = False
+    st.session_state.contest_receipt = None
+    st.session_state.review_status = "Not submitted"
+    st.session_state.reviewer_notes = ""
+    st.session_state.final_reviewer_outcome = "Pending"
+    st.session_state.case_counter += 1
+    st.session_state.last_case_signature = ""
+    st.rerun()
+
+
+# ============================================================
+# Country and domain templates
+# ============================================================
+COUNTRY_TEMPLATES: Dict[str, Dict[str, str]] = {
+    "Bangladesh": {
+        "language_note": "Plain Bangla/English wording, clear company review route, and simple evidence guidance.",
+        "rights_text": "You can request human review, correct incomplete information, and submit relevant evidence for this specific review.",
+        "timeline": "Suggested review timeline: 3–7 working days.",
+        "consent": "I consent to share only the selected information for this specific human review purpose.",
+        "regulatory_style": "Practical trust, grievance handling, and internal review readiness.",
+    },
+    "UK/EU-style": {
+        "language_note": "GDPR-style wording with human intervention, contestation, and explanation rights.",
+        "rights_text": "You can request meaningful human intervention, express your point of view, and contest the automated recommendation.",
+        "timeline": "Suggested review timeline: defined by organizational policy and applicable data-rights procedures.",
+        "consent": "I consent to this information being used only for the review of this decision and related audit record.",
+        "regulatory_style": "Automated decision contestability, meaningful human review, and audit-readiness.",
+    },
+    "US-style": {
+        "language_note": "Sector-specific adverse-action or fairness-oriented notice style.",
+        "rights_text": "You can ask for the main reasons, correct inaccurate information, and request review according to the company policy.",
+        "timeline": "Suggested review timeline: policy-dependent, usually shown clearly in the notice.",
+        "consent": "I authorize this information to be used only for this review request.",
+        "regulatory_style": "Adverse-action style explanation and case documentation.",
+    },
+    "India-style": {
+        "language_note": "Plain-language notice with grievance route, digital lending/HR/consumer review adaptation.",
+        "rights_text": "You can request review, submit correction evidence, and ask for the decision basis in simple language.",
+        "timeline": "Suggested review timeline: 3–10 working days depending on sector.",
+        "consent": "I agree that the submitted information will be used only for this review request.",
+        "regulatory_style": "Digital service grievance, transparency, and internal escalation readiness.",
+    },
+}
+
+DOMAIN_TEMPLATES: Dict[str, Dict[str, str]] = {
+    "Loan application": {
+        "affected_person": "Applicant",
+        "company_team": "Credit/risk review team",
+        "decision_label": "Automated credit recommendation",
+        "evidence_examples": "Updated income proof, employment document, repayment record, corrected debt information.",
+    },
+    "Hiring shortlist": {
+        "affected_person": "Candidate",
+        "company_team": "HR/recruitment review team",
+        "decision_label": "Automated shortlisting recommendation",
+        "evidence_examples": "Updated CV, missing experience record, portfolio, certification, corrected eligibility information.",
+    },
+    "Insurance claim": {
+        "affected_person": "Claimant",
+        "company_team": "Claims review team",
+        "decision_label": "Automated claim recommendation",
+        "evidence_examples": "Medical or repair documents, claim photos, policy document, corrected incident details.",
+    },
+    "University admission": {
+        "affected_person": "Applicant",
+        "company_team": "Admissions review team",
+        "decision_label": "Automated admissions recommendation",
+        "evidence_examples": "Transcript correction, test score, recommendation letter, missing eligibility document.",
+    },
+    "Content moderation appeal": {
+        "affected_person": "Account holder",
+        "company_team": "Trust and safety review team",
+        "decision_label": "Automated moderation recommendation",
+        "evidence_examples": "Context explanation, ownership proof, screenshot, corrected account activity information.",
+    },
+    "NGO beneficiary selection": {
+        "affected_person": "Beneficiary applicant",
+        "company_team": "Program eligibility review team",
+        "decision_label": "Automated eligibility recommendation",
+        "evidence_examples": "Household information, income correction, location proof, vulnerability documentation.",
+    },
+}
+
+
+# ============================================================
+# Model and explanation logic
+# ============================================================
 def compute_decision(
-    income: int,
-    debt_ratio: float,
-    employment_years: int,
+    capacity_indicator: int,
+    burden_ratio: float,
+    stable_activity_years: int,
     missing_docs: int,
-    credit_history: int,
+    relevant_history: int,
     sensitive_context: bool,
-) -> tuple[float, str, str, float, dict[str, float], list[str]]:
+) -> Tuple[float, str, str, float, Dict[str, float], List[str], str]:
     """
     Transparent simulated decision model.
 
@@ -330,43 +538,43 @@ def compute_decision(
     It is only a demonstration model for interaction design and contestability.
     """
     score = 50
-    score += min(income / 2000, 20)
-    score -= debt_ratio * 35
-    score += min(employment_years * 3, 15)
-    score += credit_history * 1.5
+    score += min(capacity_indicator / 2000, 20)
+    score -= burden_ratio * 35
+    score += min(stable_activity_years * 3, 15)
+    score += relevant_history * 1.5
     score -= missing_docs * 8
     score = max(0, min(100, score))
 
     if score >= 70:
-        decision = "Approve / allow"
-        decision_status = "good-card"
+        decision = "Approve"
+        status_class = "status-approved"
     elif score >= 55:
-        decision = "Conditional human review"
-        decision_status = "warn-card"
+        decision = "Send to conditional review"
+        status_class = "status-review"
     else:
-        decision = "Reject / restrict"
-        decision_status = "bad-card"
+        decision = "Do not approve automatically"
+        status_class = "status-rejected"
 
     uncertainty = max(15, min(85, 100 - abs(score - 55) * 1.5))
 
     factors = {
-        "Income or capacity stability": min(income / 2000, 20),
-        "Debt or burden ratio": -debt_ratio * 35,
-        "Stable work/activity history": min(employment_years * 3, 15),
-        "Relevant history": credit_history * 1.5,
+        "Capacity indicator": min(capacity_indicator / 2000, 20),
+        "Burden or risk ratio": -burden_ratio * 35,
+        "Stable activity history": min(stable_activity_years * 3, 15),
+        "Relevant history": relevant_history * 1.5,
         "Missing or unclear documents": -missing_docs * 8,
     }
 
-    review_triggers = []
+    review_triggers: List[str] = []
 
     if uncertainty >= 60:
         review_triggers.append(
-            "The model uncertainty is high enough that automatic processing may be unsafe."
+            "The model uncertainty is high enough that automatic finalization may be unsafe."
         )
 
     if missing_docs >= 2:
         review_triggers.append(
-            "Important documents may be missing, so the decision may be based on incomplete information."
+            "Important documents may be missing, so the recommendation may be based on incomplete information."
         )
 
     if sensitive_context:
@@ -374,52 +582,59 @@ def compute_decision(
             "The case includes sensitive context and should be checked by a human reviewer."
         )
 
-    if decision == "Reject / restrict" and score >= 45:
+    if decision == "Do not approve automatically" and score >= 45:
         review_triggers.append(
-            "The case is near the rejection boundary, so a small correction could change the outcome."
+            "The case is near the decision boundary, so a small correction could change the outcome."
         )
 
-    return score, decision, decision_status, uncertainty, factors, review_triggers
+    if score >= 70 and not review_triggers:
+        risk_level = "Low"
+    elif uncertainty >= 60 or missing_docs >= 2 or sensitive_context:
+        risk_level = "Elevated"
+    else:
+        risk_level = "Moderate"
+
+    return score, decision, status_class, uncertainty, factors, review_triggers, risk_level
 
 
-def uncertainty_label(uncertainty: float) -> tuple[str, str]:
-    if uncertainty >= 70:
-        return "High", "bad-card"
+def uncertainty_label(uncertainty: float) -> Tuple[str, str]:
+    if uncertainty >= 65:
+        return "High uncertainty", "red"
     if uncertainty >= 45:
-        return "Medium", "warn-card"
-    return "Low", "good-card"
+        return "Medium uncertainty", "amber"
+    return "Low uncertainty", "green"
 
 
-def impact_label(decision: str, scenario: str) -> tuple[str, str]:
-    if decision == "Approve / allow":
-        return "Lower immediate harm", "good-card"
-    if scenario in ["Loan application", "Hiring shortlist", "Insurance claim", "University admission"]:
-        return "Potentially significant effect", "bad-card"
-    return "Potential account/content impact", "warn-card"
+def risk_badge_variant(risk_level: str) -> str:
+    if risk_level == "Low":
+        return "green"
+    if risk_level == "Moderate":
+        return "amber"
+    return "red"
 
 
 def factor_explanation(factor: str, value: float) -> str:
     """Convert numerical factor influence into plain language."""
-    if factor == "Income or capacity stability":
+    if factor == "Capacity indicator":
         if value >= 15:
-            return "Income or capacity information strongly supported the case."
+            return "This strongly supported the application or request."
         if value >= 8:
-            return "Income or capacity information moderately supported the case."
-        return "Income or capacity information gave limited support."
+            return "This moderately supported the application or request."
+        return "This gave limited support to the application or request."
 
-    if factor == "Debt or burden ratio":
+    if factor == "Burden or risk ratio":
         if value <= -25:
-            return "Debt or burden information strongly reduced the score."
+            return "This strongly reduced the automated score."
         if value <= -10:
-            return "Debt or burden information moderately reduced the score."
-        return "Debt or burden information had only a limited negative effect."
+            return "This moderately reduced the automated score."
+        return "This had only a limited negative effect."
 
-    if factor == "Stable work/activity history":
+    if factor == "Stable activity history":
         if value >= 12:
-            return "Stable work or activity history improved confidence."
+            return "Stable history improved confidence in the recommendation."
         if value >= 6:
-            return "Work or activity history gave moderate support."
-        return "Work or activity history gave limited support."
+            return "This gave moderate support."
+        return "This gave limited support."
 
     if factor == "Relevant history":
         if value >= 12:
@@ -435,29 +650,29 @@ def factor_explanation(factor: str, value: float) -> str:
             return "Missing or unclear documents reduced confidence."
         return "No missing documents reduced the score."
 
-    return "This factor influenced the decision."
+    return "This factor influenced the recommendation."
 
 
-def challenge_suggestion(factor: str, value: float) -> str:
-    """Suggest a targeted contestation route based on a factor."""
-    if "Missing" in factor and value < 0:
-        return "Upload the missing document or explain why it is unavailable."
-    if "Debt" in factor and value <= -10:
-        return "Correct debt/burden data if it is outdated or wrongly measured."
-    if "Income" in factor and value < 8:
-        return "Provide updated income/capacity evidence if the old record is incomplete."
-    if "work" in factor.lower() and value < 6:
-        return "Clarify work, activity, study, caregiving, or non-standard experience."
-    if "Relevant history" in factor and value < 6:
-        return "Provide context that the available history does not capture."
-    return "Review this factor and challenge it only if it is inaccurate or incomplete."
+def correction_hint(factor: str, value: float, domain: str) -> str:
+    examples = DOMAIN_TEMPLATES[domain]["evidence_examples"]
+    if factor == "Missing or unclear documents" and value < 0:
+        return f"Upload or clarify missing documents. Examples: {examples}"
+    if factor == "Burden or risk ratio" and value <= -10:
+        return "Check whether this value is current and whether the underlying data is complete."
+    if factor == "Capacity indicator" and value < 8:
+        return "Submit updated information if the current capacity indicator is inaccurate or incomplete."
+    if factor == "Stable activity history" and value < 6:
+        return "Add missing work, activity, education, or eligibility history if relevant."
+    if factor == "Relevant history" and value < 6:
+        return "Add missing positive history or correction evidence if the record is incomplete."
+    return "No immediate correction is suggested, but the person can still request human review."
 
 
 def safer_workflow_recommendation(
     decision: str,
     missing_docs: int,
     uncertainty: float,
-    review_triggers: list[str],
+    review_triggers: List[str],
 ) -> str:
     """Recommend a safer next step based on the decision context."""
     if missing_docs >= 2:
@@ -466,195 +681,277 @@ def safer_workflow_recommendation(
     if uncertainty >= 60:
         return "Send the case to fast human review instead of relying only on automation."
 
-    if decision == "Reject / restrict" and review_triggers:
+    if decision == "Do not approve automatically" and review_triggers:
         return "Allow structured appeal and data correction before final rejection."
 
-    if decision == "Conditional human review":
+    if decision == "Send to conditional review":
         return "Use conditional review with limited additional evidence."
 
-    if decision == "Approve / allow":
+    if decision == "Approve":
         return "Proceed, but keep an audit trail and purpose limitation."
 
     return "Offer explanation and a clear review path."
 
 
-def build_factor_df(factors: dict[str, float]) -> pd.DataFrame:
-    df = pd.DataFrame(
-        {
-            "Factor": list(factors.keys()),
-            "Influence": list(factors.values()),
-            "Plain-language meaning": [factor_explanation(k, v) for k, v in factors.items()],
-            "What the person can do": [challenge_suggestion(k, v) for k, v in factors.items()],
-        }
-    )
-    return df.sort_values("Influence")
+def make_case_id(signature: str, counter: int) -> str:
+    digest = sha1(signature.encode("utf-8")).hexdigest()[:7].upper()
+    return f"CAI-{counter:04d}-{digest}"
 
 
-def make_audit_csv() -> str:
-    df = pd.DataFrame(st.session_state.audit_log)
-    return df.to_csv(index=False)
+def make_case_signature(values: Dict[str, object]) -> str:
+    return json.dumps(values, sort_keys=True, default=str)
 
 
-def make_case_report(
-    scenario: str,
+def build_report(
+    case_id: str,
     country: str,
+    scenario: str,
     score: float,
     decision: str,
     uncertainty: float,
+    risk_level: str,
     recommended_workflow: str,
-    factor_df: pd.DataFrame,
+    factors: Dict[str, float],
+    review_triggers: List[str],
 ) -> str:
-    output = StringIO()
-    output.write("# Contestable AI Decision Case Report\n\n")
-    output.write(f"Case ID: {st.session_state.case_id}\n\n")
-    output.write(f"Created at: {st.session_state.created_at}\n\n")
-    output.write(f"Country template: {country}\n\n")
-    output.write(f"Scenario: {scenario}\n\n")
-    output.write(f"Automated recommendation: {decision}\n\n")
-    output.write(f"Score: {score:.1f}/100\n\n")
-    output.write(f"Uncertainty: {uncertainty:.1f}%\n\n")
-    output.write(f"Recommended safer workflow: {recommended_workflow}\n\n")
-
-    output.write("## Explanation factors\n\n")
-    for _, row in factor_df.iterrows():
-        output.write(
-            f"- {row['Factor']}: influence {row['Influence']:.2f}. "
-            f"{row['Plain-language meaning']} "
-            f"Suggested contestation route: {row['What the person can do']}\n"
-        )
-
-    output.write("\n## Contestation status\n\n")
-    output.write(f"{st.session_state.review_status}\n\n")
-
-    if st.session_state.appeal_payload:
-        payload = st.session_state.appeal_payload
-        output.write("## Appeal payload\n\n")
-        output.write(f"Review path: {payload.get('review_path')}\n\n")
-        output.write(f"Reasons: {', '.join(payload.get('reasons', []))}\n\n")
-        output.write(f"Explanation: {payload.get('explanation') or 'No explanation provided.'}\n\n")
-        output.write(f"Uploaded file name: {payload.get('uploaded_file_name') or 'No file uploaded.'}\n\n")
-
-    if st.session_state.reviewer_updates:
-        output.write("## Reviewer updates\n\n")
-        for update in st.session_state.reviewer_updates:
-            output.write(
-                f"- {update['Time']} | {update['Reviewer']} | {update['Outcome']} | {update['Note']}\n"
-            )
-
-    output.write("\n## Audit log\n\n")
-    for event in st.session_state.audit_log:
-        output.write(f"- {event['Time']} | {event['Actor']} | {event['Event']}\n")
-
-    output.write("\n\nDisclaimer: This is a prototype report, not a legal compliance certificate.\n")
-    return output.getvalue()
-
-
-def card(title: str, value: str, note: str, style: str = "neutral-card") -> None:
-    st.markdown(
-        f"""
-        <div class="card {style}">
-            <div class="tiny-label">{title}</div>
-            <div class="big-value">{value}</div>
-            <div class="small-text">{note}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    factor_lines = "\n".join(
+        f"- {name}: {value:.2f} | {factor_explanation(name, value)}"
+        for name, value in factors.items()
     )
+    trigger_lines = "\n".join(f"- {trigger}" for trigger in review_triggers) if review_triggers else "- No automatic trigger detected."
+    audit_lines = "\n".join(
+        f"- {row['Time']} | {row['Actor']} | {row['Event']}"
+        for row in st.session_state.audit_log
+    )
+
+    contest = st.session_state.contest_receipt or {}
+    contest_lines = json.dumps(contest, indent=2, ensure_ascii=False) if contest else "No contestation submitted."
+
+    return f"""Contestable AI Decision Case Report
+
+Case ID: {case_id}
+Generated: {now_str()}
+
+Country template: {country}
+Scenario: {scenario}
+Automated recommendation: {decision}
+Score: {score:.1f}/100
+Uncertainty: {uncertainty:.1f}%
+Risk level: {risk_level}
+
+Recommended safer workflow:
+{recommended_workflow}
+
+Review triggers:
+{trigger_lines}
+
+Factor explanations:
+{factor_lines}
+
+Contestation receipt:
+{contest_lines}
+
+Reviewer status:
+- Review status: {st.session_state.review_status}
+- Final reviewer outcome: {st.session_state.final_reviewer_outcome}
+- Reviewer notes: {st.session_state.reviewer_notes or "No reviewer notes yet."}
+
+Audit trail:
+{audit_lines}
+"""
 
 
 # ============================================================
 # Header
 # ============================================================
 st.markdown(
-    '<div class="main-title">🛡️ Contestable AI Decision Interface</div>',
+    """
+    <div class="hero">
+        <div class="main-title">🛡️ Contestable AI Decision Interface</div>
+        <p class="subtitle">
+            A UI/UX-polished MVP showing how automated recommendations can become understandable, contestable,
+            purpose-limited, and reviewable by humans. Built as a prototype for affected people and company reviewers.
+        </p>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
-st.markdown(
-    '<div class="subtitle">A stronger Streamlit MVP for automated-decision explanation, affected-person contestation, human review, and audit reporting.</div>',
-    unsafe_allow_html=True,
-)
 
 
 # ============================================================
-# Sidebar controls
+# Sidebar inputs
 # ============================================================
-st.sidebar.header("Case Setup")
+with st.sidebar:
+    st.header("Case setup")
 
-country = st.sidebar.selectbox(
-    "Country / legal template",
-    list(COUNTRY_CONFIG.keys()),
-    index=0,
-)
+    country = st.selectbox(
+        "Country / legal style",
+        list(COUNTRY_TEMPLATES.keys()),
+        help="This changes the wording, rights notice, timeline, and consent text.",
+    )
 
-scenario = st.sidebar.selectbox(
-    "Decision scenario",
-    list(DOMAIN_CONFIG.keys()),
-    index=0,
-)
+    scenario = st.selectbox(
+        "Decision scenario",
+        list(DOMAIN_TEMPLATES.keys()),
+    )
 
-st.sidebar.divider()
-st.sidebar.subheader("Simulated Decision Inputs")
+    st.divider()
+    st.subheader("Simulated input data")
 
-income = st.sidebar.slider("Monthly income / capacity indicator", 500, 10000, 2600, step=100)
-debt_ratio = st.sidebar.slider("Debt or burden ratio", 0.0, 1.0, 0.42, step=0.01)
-employment_years = st.sidebar.slider("Years of stable work/activity", 0, 15, 2)
-missing_docs = st.sidebar.slider("Missing or unclear documents", 0, 5, 2)
-credit_history = st.sidebar.slider("Relevant history score", 0, 10, 5)
-sensitive_context = st.sidebar.checkbox("Sensitive context may require human review", value=True)
+    capacity_indicator = st.slider(
+        "Capacity indicator",
+        500,
+        10000,
+        2600,
+        step=100,
+        help="For a loan this can represent income. For other domains, treat it as a general capacity/eligibility signal.",
+    )
 
-st.sidebar.divider()
-if st.sidebar.button("Create new case / reset demo"):
-    reset_case()
+    burden_ratio = st.slider(
+        "Burden or risk ratio",
+        0.0,
+        1.0,
+        0.42,
+        step=0.01,
+        help="Higher values reduce the automated score.",
+    )
 
-st.sidebar.caption(f"Current case: {st.session_state.case_id}")
+    stable_activity_years = st.slider(
+        "Years of stable activity",
+        0,
+        15,
+        2,
+        help="Work, education, platform, or relevant activity history depending on the domain.",
+    )
+
+    missing_docs = st.slider(
+        "Missing or unclear documents",
+        0,
+        5,
+        2,
+    )
+
+    relevant_history = st.slider(
+        "Relevant history score",
+        0,
+        10,
+        5,
+    )
+
+    sensitive_context = st.checkbox(
+        "Sensitive context may require human review",
+        value=True,
+    )
+
+    st.divider()
+    if st.button("Start new simulated case", use_container_width=True):
+        reset_case_state()
 
 
-# ============================================================
-# Computation
-# ============================================================
-score, decision, decision_status, uncertainty, factors, review_triggers = compute_decision(
-    income,
-    debt_ratio,
-    employment_years,
+case_values = {
+    "country": country,
+    "scenario": scenario,
+    "capacity_indicator": capacity_indicator,
+    "burden_ratio": burden_ratio,
+    "stable_activity_years": stable_activity_years,
+    "missing_docs": missing_docs,
+    "relevant_history": relevant_history,
+    "sensitive_context": sensitive_context,
+    "case_counter": st.session_state.case_counter,
+}
+case_signature = make_case_signature(case_values)
+case_id = make_case_id(case_signature, st.session_state.case_counter)
+
+if case_signature != st.session_state.last_case_signature:
+    add_audit_event(f"Case inputs viewed or changed for {case_id}", actor="System")
+    st.session_state.last_case_signature = case_signature
+
+
+score, decision, status_class, uncertainty, factors, review_triggers, risk_level = compute_decision(
+    capacity_indicator,
+    burden_ratio,
+    stable_activity_years,
     missing_docs,
-    credit_history,
+    relevant_history,
     sensitive_context,
 )
-recommended_workflow = safer_workflow_recommendation(decision, missing_docs, uncertainty, review_triggers)
-factor_df = build_factor_df(factors)
-uncertainty_level, uncertainty_card = uncertainty_label(uncertainty)
-impact_level, impact_card = impact_label(decision, scenario)
-country_settings = COUNTRY_CONFIG[country]
-domain_settings = DOMAIN_CONFIG[scenario]
 
-if not st.session_state.decision_logged:
-    add_audit_event("Decision page viewed", actor=domain_settings["affected_person"])
-    st.session_state.decision_logged = True
+recommended_workflow = safer_workflow_recommendation(
+    decision,
+    missing_docs,
+    uncertainty,
+    review_triggers,
+)
 
+uncertainty_text, uncertainty_variant = uncertainty_label(uncertainty)
+country_template = COUNTRY_TEMPLATES[country]
+domain_template = DOMAIN_TEMPLATES[scenario]
 
-# ============================================================
-# Top summary cards
-# ============================================================
-top1, top2, top3, top4 = st.columns(4)
-with top1:
-    card("Case ID", st.session_state.case_id, f"Created {st.session_state.created_at}", "neutral-card")
-with top2:
-    card("Automated recommendation", decision, "This is not final until the workflow allows review where needed.", decision_status)
-with top3:
-    card("Uncertainty", f"{uncertainty_level} ({uncertainty:.1f}%)", "Higher uncertainty should trigger more care.", uncertainty_card)
-with top4:
-    card("Impact", impact_level, f"Scenario: {scenario}", impact_card)
+factor_df = pd.DataFrame(
+    {
+        "Factor": list(factors.keys()),
+        "Influence": list(factors.values()),
+        "Plain-language meaning": [factor_explanation(k, v) for k, v in factors.items()],
+        "Suggested correction route": [correction_hint(k, v, scenario) for k, v in factors.items()],
+    }
+).sort_values("Influence")
 
 
 # ============================================================
-# Main tabs
+# Top summary row
 # ============================================================
-tab_user, tab_reviewer, tab_audit, tab_research = st.tabs(
+top_cols = st.columns([1.15, 1, 1, 1])
+
+with top_cols[0]:
+    html_card(
+        f"""
+        <div class="kpi-label">Case ID</div>
+        <div class="kpi-value">{case_id}</div>
+        <div class="kpi-help">{country} · {scenario}</div>
+        """,
+        "compact-card",
+    )
+
+with top_cols[1]:
+    html_card(
+        f"""
+        <div class="kpi-label">Recommendation</div>
+        <div class="kpi-value" style="font-size:1.18rem;">{decision}</div>
+        <div class="kpi-help">Not a final human decision</div>
+        """,
+        f"compact-card {status_class}",
+    )
+
+with top_cols[2]:
+    html_card(
+        f"""
+        <div class="kpi-label">Uncertainty</div>
+        <div class="kpi-value">{uncertainty:.0f}%</div>
+        <div class="kpi-help">{uncertainty_text}</div>
+        """,
+        "compact-card status-info",
+    )
+
+with top_cols[3]:
+    html_card(
+        f"""
+        <div class="kpi-label">Review risk</div>
+        <div class="kpi-value">{risk_level}</div>
+        <div class="kpi-help">Based on triggers and uncertainty</div>
+        """,
+        "compact-card",
+    )
+
+
+# ============================================================
+# Tabs
+# ============================================================
+tab_user, tab_review, tab_audit, tab_research = st.tabs(
     [
-        "Affected-person portal",
-        "Company review dashboard",
-        "Audit and exports",
-        "Research framing",
+        "👤 Affected-person portal",
+        "🏢 Company review dashboard",
+        "📋 Audit & export",
+        "🔬 Research framing",
     ]
 )
 
@@ -663,96 +960,120 @@ tab_user, tab_reviewer, tab_audit, tab_research = st.tabs(
 # Affected-person portal
 # ============================================================
 with tab_user:
-    st.subheader("1. Decision notice")
+    left, right = st.columns([1.25, 0.85])
 
-    notice_col1, notice_col2 = st.columns([1.2, 1])
+    with left:
+        section_title(
+            "Your decision notice",
+            "This is the version an affected person would see. It avoids saying the AI made a final decision.",
+        )
 
-    with notice_col1:
-        st.markdown(
+        decision_badge = "green" if decision == "Approve" else "amber" if decision == "Send to conditional review" else "red"
+        html_card(
             f"""
-            <div class="card {decision_status}">
-                <b>Scenario:</b> {scenario}<br>
-                <b>Affected person:</b> {domain_settings["affected_person"]}<br>
-                <b>Automated recommendation:</b> {decision}<br>
-                <b>Score:</b> {score:.1f}/100<br>
-                <span class="small-text">This is a simulated model output for an interface prototype.</span>
-            </div>
+            {badge(domain_template["decision_label"], "blue")}
+            {badge(decision, decision_badge)}
+            {badge(risk_level + " review risk", risk_badge_variant(risk_level))}
+            <h3 style="margin:0.2rem 0 0.4rem 0;color:#111827;">Automated recommendation: {decision}</h3>
+            <p class="small-text">
+                This is an automated recommendation, not the end of the process. You may request human review,
+                correct information, or submit evidence if something is missing or misunderstood.
+            </p>
+            <div class="divider-soft"></div>
+            <div class="small-text"><strong>Country template:</strong> {country}</div>
+            <div class="small-text"><strong>Expected route:</strong> {country_template["timeline"]}</div>
             """,
-            unsafe_allow_html=True,
-        )
-        st.progress(int(score))
-
-    with notice_col2:
-        st.markdown(
-            f"""
-            <div class="card info-card">
-                <b>Country template:</b> {country}<br>
-                <b>Review timeline:</b> {country_settings["review_timeline"]}<br>
-                <b>Interface tone:</b> {country_settings["tone"]}<br>
-                <span class="small-text">{country_settings["rights_notice"]}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
+            f"decision-card {status_class}",
         )
 
-    st.subheader("2. Why human review may be needed")
+        st.progress(int(score), text=f"Automated score: {score:.1f}/100")
+        st.progress(int(uncertainty), text=f"Estimated uncertainty: {uncertainty:.1f}%")
 
-    if review_triggers:
-        for trigger in review_triggers:
-            st.warning(trigger)
-    else:
-        st.success("No automatic human-review trigger was detected, but the person can still request review.")
-
-    st.info(f"Recommended safer workflow: {recommended_workflow}")
-
-    with st.expander("Sensitive-context note"):
-        st.write(domain_settings["sensitive_warning"])
-
-    st.subheader("3. Plain-language explanation")
-
-    desktop_view, mobile_view = st.tabs(["Table view", "Card view"])
-
-    with desktop_view:
-        st.dataframe(
-            factor_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Influence": st.column_config.NumberColumn(format="%.2f"),
-            },
-        )
-
-    with mobile_view:
-        for _, row in factor_df.iterrows():
-            style = "good-card" if row["Influence"] > 0 else "bad-card" if row["Influence"] < -10 else "neutral-card"
-            st.markdown(
-                f"""
-                <div class="card {style}">
-                    <b>{row["Factor"]}</b><br>
-                    Influence: {row["Influence"]:.2f}<br>
-                    <span class="small-text">{row["Plain-language meaning"]}</span><br><br>
-                    <b>Possible action:</b><br>
-                    <span class="small-text">{row["What the person can do"]}</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
+        section_title("Why review may be needed")
+        if review_triggers:
+            for idx, trigger in enumerate(review_triggers, start=1):
+                html_card(
+                    f"""
+                    <span class="step-number">{idx}</span>
+                    <strong>{trigger}</strong>
+                    """,
+                    "callout",
+                )
+        else:
+            html_card(
+                "No automatic human-review trigger was detected, but you can still request review if you believe the decision is wrong.",
+                "callout",
             )
 
-    important_factors = factor_df[abs(factor_df["Influence"]) >= 10]
-    st.write("**Key explanation:**")
-    if important_factors.empty:
-        st.write("- No single factor strongly dominated the decision.")
-    else:
-        for _, row in important_factors.iterrows():
-            st.write(f"- **{row['Factor']}**: {row['Plain-language meaning']}")
+        html_card(
+            f"""
+            <strong>Recommended safer workflow:</strong><br>
+            {recommended_workflow}
+            """,
+            "callout",
+        )
 
-    st.subheader("4. Contest the decision")
+    with right:
+        section_title("Your rights and options")
+        html_card(
+            f"""
+            {badge(country, "purple")}
+            <p><strong>Plain-language notice</strong></p>
+            <p class="small-text">{country_template["language_note"]}</p>
+            <div class="divider-soft"></div>
+            <p><strong>What you can do</strong></p>
+            <p class="small-text">{country_template["rights_text"]}</p>
+            """,
+            "card",
+        )
 
-    st.caption(
-        "The form is structured so the affected person challenges specific issues instead of sending a vague complaint or oversharing data."
+        html_card(
+            f"""
+            <p><strong>Evidence examples for this case</strong></p>
+            <p class="small-text">{domain_template["evidence_examples"]}</p>
+            """,
+            "card",
+        )
+
+    section_title(
+        "Plain-language factor explanation",
+        "The mobile-friendly card layout is used instead of only showing a table.",
     )
 
-    with st.form("contest_form"):
+    for _, row in factor_df.iterrows():
+        value = float(row["Influence"])
+        if value > 2:
+            score_class = "factor-score-pos"
+            sign = "+"
+        elif value < -2:
+            score_class = "factor-score-neg"
+            sign = ""
+        else:
+            score_class = "factor-score-neu"
+            sign = ""
+
+        html_card(
+            f"""
+            <div class="factor-head">
+                <div class="factor-name">{row["Factor"]}</div>
+                <div class="{score_class}">{sign}{value:.1f}</div>
+            </div>
+            <div class="factor-text">{row["Plain-language meaning"]}</div>
+            <div class="divider-soft"></div>
+            <div class="factor-text"><strong>Possible action:</strong> {row["Suggested correction route"]}</div>
+            """,
+            "factor-card",
+        )
+
+    with st.expander("Show detailed factor table"):
+        st.dataframe(factor_df, use_container_width=True, hide_index=True)
+
+    section_title(
+        "Contest or request review",
+        "The form guides the person to challenge specific issues rather than writing a vague appeal.",
+    )
+
+    with st.form("contest_form", clear_on_submit=False):
         reasons = st.multiselect(
             "What do you want to challenge?",
             [
@@ -762,377 +1083,392 @@ with tab_user:
                 "The decision may be unfair or biased",
                 "The decision is too uncertain for automatic processing",
                 "I want human review",
-                "I want an explanation only",
             ],
             default=["Important document is missing"] if missing_docs >= 2 else [],
         )
 
         explanation = st.text_area(
             "Explain your challenge",
-            placeholder="Example: My current income is higher than shown, and one employment document was missing.",
+            placeholder="Example: My current information is higher than shown, and one document was missing.",
             height=120,
         )
-
-        correction_col1, correction_col2 = st.columns(2)
-        with correction_col1:
-            corrected_income = st.number_input(
-                "Optional corrected income/capacity value",
-                min_value=0,
-                value=0,
-                step=100,
-                help="Leave as 0 if you are not correcting this field.",
-            )
-        with correction_col2:
-            corrected_docs = st.number_input(
-                "Optional number of documents you can now provide",
-                min_value=0,
-                max_value=10,
-                value=0,
-                step=1,
-            )
 
         uploaded_file = st.file_uploader(
             "Upload optional evidence",
             type=["pdf", "png", "jpg", "jpeg", "docx"],
-            help="For this demo, only the file name is shown. A production version should use encrypted storage.",
+            help="In a full SaaS version, this would be stored securely with access control.",
         )
 
-        st.write("Suggested evidence for this scenario:")
-        for item in domain_settings["evidence_examples"]:
-            st.write(f"- {item}")
+        review_path_options = [
+            "Fast human review",
+            "Correct data and rerun recommendation",
+            "Full appeal review",
+            "Request explanation only",
+        ]
+
+        suggested_index = 0
+        if missing_docs >= 2:
+            suggested_index = 1
+        elif decision == "Do not approve automatically":
+            suggested_index = 2
 
         review_path = st.radio(
             "Choose review path",
-            [
-                "Fast human review",
-                "Correct data and rerun decision",
-                "Full appeal review",
-                "Request explanation only",
-            ],
+            review_path_options,
+            index=suggested_index,
         )
 
-        consent = st.checkbox(
-            f"I consent to share only the selected information for this specific review purpose. {country_settings['consent_notice']}"
-        )
+        consent = st.checkbox(country_template["consent"])
 
-        no_extra_data = st.checkbox(
-            "I understand that I should not upload unrelated sensitive information unless it is necessary for this review."
-        )
-
-        submitted = st.form_submit_button("Submit contestation request")
+        submitted = st.form_submit_button("Submit review request", use_container_width=True)
 
     if submitted:
         if not reasons:
-            st.error("Please select at least one reason for contesting the decision.")
+            st.error("Please select at least one reason for requesting review.")
         elif not consent:
             st.error("Please give purpose-limited consent before submitting.")
-        elif not no_extra_data:
-            st.error("Please confirm that unrelated extra data should not be uploaded.")
         else:
-            receipt_id = f"RCPT-{uuid4().hex[:8].upper()}"
             st.session_state.contestation_submitted = True
-            st.session_state.review_status = "Contestation submitted and waiting for company review"
-            st.session_state.contestation_receipt = receipt_id
-            st.session_state.appeal_payload = {
-                "receipt_id": receipt_id,
-                "submitted_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "reasons": reasons,
-                "explanation": explanation,
-                "uploaded_file_name": uploaded_file.name if uploaded_file is not None else None,
+            st.session_state.review_status = "Submitted"
+            st.session_state.contest_receipt = {
+                "case_id": case_id,
+                "submitted_at": now_str(),
+                "original_recommendation": decision,
                 "review_path": review_path,
-                "corrected_income": corrected_income if corrected_income > 0 else None,
-                "corrected_docs": corrected_docs if corrected_docs > 0 else None,
+                "selected_reasons": reasons,
+                "user_explanation": explanation,
+                "uploaded_evidence": uploaded_file.name if uploaded_file is not None else None,
+                "purpose_limitation": country_template["consent"],
             }
-            add_audit_event("Contestation request submitted", actor=domain_settings["affected_person"])
-            add_audit_event(f"Review path selected: {review_path}", actor=domain_settings["affected_person"])
-            st.success("Contestation request submitted successfully.")
+            add_audit_event("Review request submitted by affected person", actor=domain_template["affected_person"])
+            st.success("Review request submitted successfully.")
 
-    if st.session_state.contestation_submitted and st.session_state.appeal_payload:
-        payload = st.session_state.appeal_payload
-        st.markdown("### Contestation receipt")
-        st.markdown(
+    if st.session_state.contest_receipt:
+        section_title("Review request receipt")
+        receipt = st.session_state.contest_receipt
+        html_card(
             f"""
-            <div class="receipt">
-                <b>Receipt ID:</b> {payload["receipt_id"]}<br>
-                <b>Submitted at:</b> {payload["submitted_at"]}<br>
-                <b>Original automated recommendation:</b> {decision}<br>
-                <b>Review path:</b> {payload["review_path"]}<br>
-                <b>Status:</b> {st.session_state.review_status}<br>
-                <b>Expected timeline:</b> {country_settings["review_timeline"]}<br>
-                <span class="small-text">{country_settings["retention_notice"]}</span>
-            </div>
+            {badge("Submitted", "green")}
+            <p><strong>Case:</strong> {receipt["case_id"]}</p>
+            <p><strong>Original recommendation:</strong> {receipt["original_recommendation"]}</p>
+            <p><strong>Review path:</strong> {receipt["review_path"]}</p>
+            <p><strong>Submitted:</strong> {receipt["submitted_at"]}</p>
+            <p class="small-text"><strong>Purpose limitation:</strong> {receipt["purpose_limitation"]}</p>
             """,
-            unsafe_allow_html=True,
+            "card status-approved",
         )
-
-        st.write("**Selected challenge reasons:**")
-        for reason in payload["reasons"]:
-            st.write(f"- {reason}")
-
-        if payload["explanation"]:
-            st.write("**User explanation:**")
-            st.write(payload["explanation"])
-
-        if payload["uploaded_file_name"]:
-            st.write(f"**Uploaded evidence:** {payload['uploaded_file_name']}")
 
 
 # ============================================================
 # Company reviewer dashboard
 # ============================================================
-with tab_reviewer:
-    st.subheader("Company review dashboard")
-
-    st.markdown(
-        f"""
-        <div class="card purple-card">
-            <b>Internal team:</b> {domain_settings["company_team"]}<br>
-            <b>Current status:</b> {st.session_state.review_status}<br>
-            <b>Final outcome:</b> {st.session_state.final_outcome}<br>
-            <span class="small-text">This dashboard is what the subscribing organization would use. The affected person should not see internal notes unless the company chooses to share them.</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+with tab_review:
+    section_title(
+        "Company review dashboard",
+        "This is the internal side used by the company team that pays for the product.",
     )
 
-    reviewer_col1, reviewer_col2 = st.columns(2)
+    review_cols = st.columns([1, 1, 1])
 
-    with reviewer_col1:
-        st.write("**Case summary**")
-        st.write(f"- Country template: {country}")
-        st.write(f"- Scenario: {scenario}")
-        st.write(f"- Automated recommendation: {decision}")
-        st.write(f"- Score: {score:.1f}/100")
-        st.write(f"- Uncertainty: {uncertainty:.1f}%")
-        st.write(f"- Recommended safer workflow: {recommended_workflow}")
+    with review_cols[0]:
+        html_card(
+            f"""
+            <div class="kpi-label">Assigned team</div>
+            <div class="kpi-value" style="font-size:1.15rem;">{domain_template["company_team"]}</div>
+            <div class="kpi-help">Role-based reviewer queue in full SaaS</div>
+            """,
+            "compact-card",
+        )
 
-    with reviewer_col2:
-        st.write("**Review triggers**")
-        if review_triggers:
-            for trigger in review_triggers:
-                st.write(f"- {trigger}")
+    with review_cols[1]:
+        html_card(
+            f"""
+            <div class="kpi-label">Review status</div>
+            <div class="kpi-value" style="font-size:1.15rem;">{st.session_state.review_status}</div>
+            <div class="kpi-help">Changes after user submission</div>
+            """,
+            "compact-card status-info",
+        )
+
+    with review_cols[2]:
+        html_card(
+            f"""
+            <div class="kpi-label">Suggested action</div>
+            <div class="kpi-value" style="font-size:1.02rem;">{recommended_workflow}</div>
+            <div class="kpi-help">Generated from triggers</div>
+            """,
+            "compact-card",
+        )
+
+    left, right = st.columns([1.1, 0.9])
+
+    with left:
+        section_title("Case triage")
+        trigger_text = "<br>".join(f"• {trigger}" for trigger in review_triggers) if review_triggers else "No automatic trigger detected."
+        html_card(
+            f"""
+            <p><strong>Case ID:</strong> {case_id}</p>
+            <p><strong>Scenario:</strong> {scenario}</p>
+            <p><strong>Automated recommendation:</strong> {decision}</p>
+            <p><strong>Score:</strong> {score:.1f}/100</p>
+            <p><strong>Uncertainty:</strong> {uncertainty:.1f}%</p>
+            <p><strong>Review risk:</strong> {risk_level}</p>
+            <div class="divider-soft"></div>
+            <p><strong>Review triggers</strong></p>
+            <p class="small-text">{trigger_text}</p>
+            """,
+            "card",
+        )
+
+        if st.session_state.contest_receipt:
+            section_title("Affected-person submission")
+            receipt = st.session_state.contest_receipt
+            st.json(receipt)
         else:
-            st.write("- No automatic trigger, but voluntary review remains available.")
+            st.info("No review request has been submitted yet.")
 
-    if st.session_state.appeal_payload:
-        st.write("### Submitted appeal")
-        payload = st.session_state.appeal_payload
-        st.write(f"**Receipt:** {payload['receipt_id']}")
-        st.write(f"**Review path:** {payload['review_path']}")
-        st.write(f"**Reasons:** {', '.join(payload['reasons'])}")
-        st.write(f"**Explanation:** {payload['explanation'] or 'No explanation provided.'}")
-        st.write(f"**File:** {payload['uploaded_file_name'] or 'No file uploaded.'}")
-        if payload["corrected_income"]:
-            st.write(f"**Corrected income/capacity:** {payload['corrected_income']}")
-        if payload["corrected_docs"]:
-            st.write(f"**Additional documents available:** {payload['corrected_docs']}")
-    else:
-        st.info("No contestation has been submitted yet.")
+    with right:
+        section_title("Reviewer action")
+        with st.form("reviewer_form"):
+            new_status = st.selectbox(
+                "Review status",
+                [
+                    "Not submitted",
+                    "Submitted",
+                    "In human review",
+                    "Waiting for more evidence",
+                    "Resolved",
+                ],
+                index=[
+                    "Not submitted",
+                    "Submitted",
+                    "In human review",
+                    "Waiting for more evidence",
+                    "Resolved",
+                ].index(st.session_state.review_status)
+                if st.session_state.review_status
+                in [
+                    "Not submitted",
+                    "Submitted",
+                    "In human review",
+                    "Waiting for more evidence",
+                    "Resolved",
+                ]
+                else 0,
+            )
 
-    st.subheader("Reviewer action")
+            outcome = st.selectbox(
+                "Final reviewer outcome",
+                [
+                    "Pending",
+                    "Original recommendation upheld",
+                    "Recommendation changed",
+                    "More information required",
+                    "Escalated to senior reviewer",
+                ],
+                index=[
+                    "Pending",
+                    "Original recommendation upheld",
+                    "Recommendation changed",
+                    "More information required",
+                    "Escalated to senior reviewer",
+                ].index(st.session_state.final_reviewer_outcome)
+                if st.session_state.final_reviewer_outcome
+                in [
+                    "Pending",
+                    "Original recommendation upheld",
+                    "Recommendation changed",
+                    "More information required",
+                    "Escalated to senior reviewer",
+                ]
+                else 0,
+            )
 
-    with st.form("reviewer_form"):
-        reviewer_name = st.text_input("Reviewer name or ID", value="Reviewer-1")
-        priority = st.selectbox(
-            "Queue priority",
-            ["Normal", "High - near boundary", "High - sensitive context", "High - missing documents"],
-            index=2 if sensitive_context else 0,
+            notes = st.text_area(
+                "Reviewer notes",
+                value=st.session_state.reviewer_notes,
+                height=150,
+                placeholder="Write what was checked, what evidence was considered, and why the final decision is justified.",
+            )
+
+            reviewer_submitted = st.form_submit_button("Save reviewer update", use_container_width=True)
+
+        if reviewer_submitted:
+            st.session_state.review_status = new_status
+            st.session_state.final_reviewer_outcome = outcome
+            st.session_state.reviewer_notes = notes
+            add_audit_event(f"Reviewer updated status to '{new_status}' and outcome to '{outcome}'", actor="Company reviewer")
+            st.success("Reviewer update saved.")
+
+    section_title("Traditional notice vs contestable workflow")
+    c1, c2 = st.columns(2)
+
+    with c1:
+        html_card(
+            """
+            <h4 style="margin-top:0;color:#111827;">Traditional automated notice</h4>
+            <p class="small-text">
+            • Shows only a decision<br>
+            • Gives vague reasons<br>
+            • Provides generic appeal route<br>
+            • User may not know what to challenge<br>
+            • Organization gets unstructured complaints
+            </p>
+            """,
+            "card status-rejected",
         )
-        reviewer_outcome = st.selectbox(
-            "Reviewer outcome",
-            [
-                "Pending",
-                "Request more documents",
-                "Correct data and rerun",
-                "Escalate to senior reviewer",
-                "Uphold automated recommendation",
-                "Reverse automated recommendation",
-                "Partially revise decision",
-            ],
-        )
-        reviewer_note = st.text_area(
-            "Internal reviewer note",
-            placeholder="Example: Applicant provided updated income document. Recommend data correction and rerun.",
-            height=110,
-        )
-        share_summary = st.text_area(
-            "Plain-language summary to share with affected person",
-            placeholder="Example: We are reviewing the updated document and will notify you after human assessment.",
-            height=100,
-        )
-        save_review = st.form_submit_button("Save reviewer update")
 
-    if save_review:
-        update = {
-            "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Reviewer": reviewer_name,
-            "Priority": priority,
-            "Outcome": reviewer_outcome,
-            "Note": reviewer_note or "No internal note.",
-            "Shared summary": share_summary or "No shared summary.",
-        }
-        st.session_state.reviewer_updates.append(update)
-        st.session_state.review_status = reviewer_outcome
-        st.session_state.final_outcome = reviewer_outcome
-        add_audit_event(f"Reviewer update saved: {reviewer_outcome}", actor=reviewer_name)
-        st.success("Reviewer update saved.")
-
-    if st.session_state.reviewer_updates:
-        st.write("### Reviewer update history")
-        st.dataframe(pd.DataFrame(st.session_state.reviewer_updates), use_container_width=True, hide_index=True)
+    with c2:
+        html_card(
+            """
+            <h4 style="margin-top:0;color:#111827;">Contestable workflow</h4>
+            <p class="small-text">
+            • Shows recommendation, uncertainty, and triggers<br>
+            • Explains factors in plain language<br>
+            • Guides focused evidence submission<br>
+            • Routes the case to human review<br>
+            • Creates an audit-ready record
+            </p>
+            """,
+            "card status-approved",
+        )
 
 
 # ============================================================
-# Audit and exports
+# Audit and export
 # ============================================================
 with tab_audit:
-    st.subheader("Audit trail")
+    section_title(
+        "Audit trail",
+        "Every important step should be recorded. In a full SaaS version this must be immutable or tamper-evident.",
+    )
 
     if st.session_state.audit_log:
-        st.dataframe(pd.DataFrame(st.session_state.audit_log), use_container_width=True, hide_index=True)
+        audit_df = pd.DataFrame(st.session_state.audit_log)
+        st.dataframe(audit_df, use_container_width=True, hide_index=True)
+
+        section_title("Timeline view")
+        for row in reversed(st.session_state.audit_log[-8:]):
+            st.markdown(
+                f"""
+                <div class="timeline-item">
+                    <div class="timeline-time">{row["Time"]} · {row["Actor"]}</div>
+                    <div class="timeline-event">{row["Event"]}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
     else:
         st.info("No audit events yet.")
 
-    report_text = make_case_report(
-        scenario=scenario,
-        country=country,
-        score=score,
-        decision=decision,
-        uncertainty=uncertainty,
-        recommended_workflow=recommended_workflow,
-        factor_df=factor_df,
+    report_text = build_report(
+        case_id,
+        country,
+        scenario,
+        score,
+        decision,
+        uncertainty,
+        risk_level,
+        recommended_workflow,
+        factors,
+        review_triggers,
     )
 
-    export_col1, export_col2 = st.columns(2)
-
-    with export_col1:
+    export_cols = st.columns(2)
+    with export_cols[0]:
         st.download_button(
-            "Download audit log as CSV",
-            data=make_audit_csv(),
-            file_name=f"{st.session_state.case_id}_audit_log.csv",
-            mime="text/csv",
-        )
-
-    with export_col2:
-        st.download_button(
-            "Download case report as TXT/Markdown",
+            "Download case report (.txt)",
             data=report_text,
-            file_name=f"{st.session_state.case_id}_case_report.md",
-            mime="text/markdown",
+            file_name=f"{case_id}_contestable_ai_report.txt",
+            mime="text/plain",
+            use_container_width=True,
         )
 
-    st.subheader("Data minimization checklist")
-    st.checkbox("Only necessary evidence is requested.", value=True, disabled=True)
-    st.checkbox("Purpose-limited consent is recorded.", value=bool(st.session_state.appeal_payload), disabled=True)
-    st.checkbox("Human-review route is available.", value=True, disabled=True)
-    st.checkbox("Audit log is generated.", value=bool(st.session_state.audit_log), disabled=True)
-    st.checkbox("Country-specific notice is shown.", value=True, disabled=True)
+    with export_cols[1]:
+        audit_json = json.dumps(st.session_state.audit_log, indent=2, ensure_ascii=False)
+        st.download_button(
+            "Download audit log (.json)",
+            data=audit_json,
+            file_name=f"{case_id}_audit_log.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+
+    with st.expander("Preview case report"):
+        st.text(report_text)
 
 
 # ============================================================
 # Research framing
 # ============================================================
 with tab_research:
-    st.subheader("Why this interface is different")
-
-    compare_col1, compare_col2 = st.columns(2)
-
-    with compare_col1:
-        st.markdown(
-            """
-            <div class="card bad-card">
-            <b>Traditional AI notice</b><br><br>
-            • Shows a decision only<br>
-            • Gives vague explanation<br>
-            • Provides generic appeal button<br>
-            • User may not know what to challenge<br>
-            • User may overshare unnecessary data<br>
-            • No clear audit trail for the affected person
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with compare_col2:
-        st.markdown(
-            """
-            <div class="card good-card">
-            <b>Contestable AI interface</b><br><br>
-            • Shows recommendation and uncertainty<br>
-            • Explains important factors in plain language<br>
-            • Guides specific challenges and corrections<br>
-            • Supports human review and evidence upload<br>
-            • Uses purpose-limited consent<br>
-            • Produces audit and review records
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.subheader("Research contribution")
-    st.write(
+    section_title("Research contribution")
+    html_card(
         """
-        This MVP demonstrates actionable contestability. The affected person does not only receive an automated result.
-        They receive an explanation, uncertainty information, review triggers, a safer workflow recommendation,
-        a structured challenge form, and a path to human review. The core idea is to make the safe and fair path easier than a vague appeal process.
-        """
+        <p>
+        This MVP demonstrates <strong>actionable contestability</strong>. The affected person does not only receive
+        an automated recommendation. They receive a plain-language explanation, uncertainty information, review triggers,
+        a safer workflow recommendation, and a structured way to challenge the decision.
+        </p>
+        <p class="small-text">
+        The central design shift is from transparency alone to procedural empowerment: the interface makes the safe and fair
+        path easier than a vague appeal process.
+        </p>
+        """,
+        "card",
     )
 
-    st.subheader("Suggested user study")
-    study_df = pd.DataFrame(
-        [
-            {
-                "Measure": "Decision understanding",
-                "Question": "Can users explain why the decision happened?",
-                "Possible metric": "Comprehension score",
-            },
-            {
-                "Measure": "Error identification",
-                "Question": "Can users identify what data may be wrong or missing?",
-                "Possible metric": "Correct issue selection rate",
-            },
-            {
-                "Measure": "Review-path choice",
-                "Question": "Can users choose an appropriate contestation path?",
-                "Possible metric": "Path-choice accuracy",
-            },
-            {
-                "Measure": "Data minimization",
-                "Question": "Do users avoid uploading unnecessary sensitive data?",
-                "Possible metric": "Oversharing rate",
-            },
-            {
-                "Measure": "Procedural fairness",
-                "Question": "Do users feel the process is more fair and reviewable?",
-                "Possible metric": "Likert-scale fairness score",
-            },
-        ]
-    )
-    st.dataframe(study_df, use_container_width=True, hide_index=True)
-
-    st.subheader("Next product improvements after this Streamlit MVP")
-    st.write(
+    section_title("Suggested user study")
+    html_card(
         """
-        1. Replace session state with a real database such as PostgreSQL.
-        2. Add company accounts, reviewer roles, and affected-person secure links.
-        3. Store evidence in encrypted object storage.
-        4. Add API endpoints so companies can send decisions automatically.
-        5. Add PDF audit reports and email notifications.
-        6. Add country templates through an admin configuration panel.
-        7. Add multilingual interface files instead of hardcoded strings.
-        """
+        <p><strong>Study design:</strong> Compare this interface against a standard automated rejection notice.</p>
+        <p class="small-text">
+        Measure whether users can understand the decision, identify possible errors, choose an appropriate review path,
+        avoid unnecessary data sharing, and feel that the process is fair.
+        </p>
+        <div class="divider-soft"></div>
+        <p><strong>Possible outcome measures</strong></p>
+        <p class="small-text">
+        • Decision comprehension<br>
+        • Error identification accuracy<br>
+        • Correct review-path selection<br>
+        • Data minimization behavior<br>
+        • Perceived procedural fairness<br>
+        • Trust calibration<br>
+        • Appeal quality
+        </p>
+        """,
+        "card",
     )
 
+    section_title("How this would become a real SaaS")
+    html_card(
+        """
+        <p><strong>Next.js frontend</strong> for the public portal and company dashboard.</p>
+        <p><strong>FastAPI or Django backend</strong> for case creation, review workflow, and API integrations.</p>
+        <p><strong>PostgreSQL</strong> for companies, users, decision cases, appeals, audit logs, templates, and subscriptions.</p>
+        <p><strong>S3/Supabase Storage</strong> for encrypted evidence files.</p>
+        <p><strong>Auth0/Clerk/Supabase Auth</strong> for company login, reviewer roles, and secure access.</p>
+        <p><strong>Stripe</strong> for company subscriptions.</p>
+        """,
+        "card",
+    )
 
-# ============================================================
-# Footer
-# ============================================================
-st.markdown(
-    """
-    <div class="footer-note">
-    Prototype disclaimer: This app simulates decision logic for research and product-design purposes. 
-    It is not a real credit, hiring, insurance, admission, moderation, or legal compliance system.
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+    section_title("UI/UX corrections made in this version")
+    html_card(
+        """
+        <p class="small-text">
+        • Replaced one long page with tabbed navigation<br>
+        • Replaced pale low-contrast cards with higher-contrast cards<br>
+        • Changed “Decision: Rejected” into “Automated recommendation” wording<br>
+        • Added mobile-friendly factor cards instead of relying only on a table<br>
+        • Added top summary cards for faster scanning<br>
+        • Added country-aware wording and consent text<br>
+        • Separated affected-person portal from company reviewer dashboard<br>
+        • Added reviewer status, notes, and outcome fields<br>
+        • Added report and audit-log downloads<br>
+        • Added reset/new-case flow
+        </p>
+        """,
+        "card status-info",
+    )
